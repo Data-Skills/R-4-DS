@@ -1,12 +1,11 @@
-lesson-example
+R-4-DS
 ==============
 
-This repository shows how to create a lesson using
-the [Software Carpentry lesson template][styles],
-and is itself an example of the use of that template.
-Please see <https://swcarpentry.github.io/lesson-example/>
-for a rendered version of this material,
-including detailed instructions on design, setup, and formatting.
+R lesson for the "Computational Skills for Biological Data" workshop using
+the [Software Carpentry lesson template][styles].
+Please see <https://data-skills.github.io/r4ds/>
+for a rendered version of this material. The lesson is based primarily on the
+[R for Data Science](http://r4ds.had.co.nz/) book by [Hadley Wickham](http://hadley.nz/).
 
 ## Quick Instructions
 
