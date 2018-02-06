@@ -4,17 +4,13 @@ root: .
 permalink: index.html  # Is the only page that don't follow the partner /:path/index.html
 ---
 
-This lesson shows how to use the
-[Software Carpentry]({{ site.swc_site }}) and
-[Data Carpentry]({{ site.dc_site }}) lesson template.
-For guidelines on how to help improve our lessons and this template,
-please see [the contribution guidelines][contributing];
-for guidelines on how to set up your machine to preview changes locally,
-please see [the setup instructions]({{ page.root }}{% link setup.md %}).
+This lesson reviews some important R packages for manipulation and visualization of 
+biological data. It is based primarily on the
+[R for Data Science](http://r4ds.had.co.nz/) book by [Hadley Wickham](http://hadley.nz/).
 
 > ## Prerequisites
 >
-> Use the `.prereq` style to specify prerequisites.
+> Background knowledge of R and Unix.
 {: .prereq}
 
 > ## Ten Things You Need To Know
