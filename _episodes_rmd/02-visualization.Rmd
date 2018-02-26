@@ -85,7 +85,7 @@ dvst <- read_csv("https://raw.githubusercontent.com/vsbuffalo/bds-files/master/c
 
 ## Exploring Data Visually with ggplot2 I: Scatterplots and Densities
 
-First, we'll use ggplot2 to create a scatterplot of nucleotide diversity along the chromosome. 
+We'll start by using ggplot2 to create a scatterplot of nucleotide diversity along the chromosome. 
 But because our data is window-based, we’ll first add a column called position that’s 
 the midpoint between each window:
 
@@ -271,7 +271,7 @@ points somewhat transparent (the transparency level is known as the alpha):
 ```{r}
 ggplot(data = dvst) + geom_point(mapping = aes(x=position, y=diversity), alpha=0.01)
 ```
-Note that we set alpha=0.01 outside of the aesthetic mapping function aes() as we did with color in
+Note that we set alpha=0.01 outside of the aesthetic mapping function aes() as we did with the color in
 the previous example. This is because we’re not mapping the alpha aesthetic to a column of data in our dataframe, but rather giving it a fixed value for all data points.
 
 Let’s now look at the density of diversity across all positions. We’ll use a different geometric object, 
@@ -350,6 +350,249 @@ the aesthetic in `ggplot()` function.
 > {: .solution}
 {: .challenge}
 
+## Binning Data with `cut(`) and Bar Plots with ggplot2
+
+Next, let's take a look at a bar chart. Bar charts seem simple, but they reveal something subtle about plots. 
+Consider a basic bar chart, as drawn with `geom_bar()`. As you can see, there are ~60000 windows in the dataset, 
+most of them outside the centromeric region. 
+
+```{r}
+ggplot(data = dvst) + 
+  geom_bar(mapping = aes(x = cent))
+```
+
+On the x-axis, the chart displays `cent`, a variable from `dvst`. On the y-axis, it displays count,
+but count is not a variable in `dvst`! Where does count come from? Many graphs, like scatterplots, 
+plot the raw values of your dataset. Other graphs, like bar charts, calculate new values to plot:
+
+* bar charts, histograms, and frequency polygons bin your data 
+  and then plot bin counts, the number of points that fall in each bin.
+
+* smoothers fit a model to your data and then plot predictions from the
+  model.
+
+* boxplots compute a robust summary of the distribution and then display a 
+  specially formatted box.
+
+The algorithm used to calculate new values for a graph is called a __stat__, short for statistical transformation. 
+The figure below describes how this process works with `geom_bar()`.
+
+```{r, echo = FALSE, out.width = "100%"}
+knitr::include_graphics("images/visualization-stat-bar.png")
+```
+
+You can learn which stat a geom uses by inspecting the default value for the `stat` argument. 
+For example, `?geom_bar` shows that the default value for `stat` is "count", which means that 
+`geom_bar()` uses `stat_count()`. `stat_count()` is documented on the same page as `geom_bar()`, 
+and if you scroll down you can find a section called "Computed variables". That describes how 
+it computes two new variables: `count` and `prop`.
+
+You can generally use geoms and stats interchangeably. For example, you can recreate the previous 
+plot using `stat_count()` instead of `geom_bar()`:
+
+```{r}
+ggplot(data = dvst) + 
+  stat_count(mapping = aes(x = cent))
+```
+
+This works because every geom has a default stat; and every stat has a default geom. This means 
+that you can typically use geoms without worrying about the underlying statistical transformation. 
+There are three reasons you might need to use a stat explicitly:
+
+1.  You might want to override the default stat. For example, the height of the bar may be already
+    present in the data as another variable, in which case you will use `stat = "identity"`
+
+1.  You might want to override the default mapping from transformed variables
+    to aesthetics. For example, you might want to display a bar chart of
+    proportion, rather than count:
+    
+    ```{r}
+    ggplot(data = dvst) + 
+      geom_bar(mapping = aes(x = cent, y = ..prop.., group = 1))
+    ```
+
+1.  You might want to draw greater attention to the statistical transformation
+    in your code. For example, you might use `stat_summary()`, which
+    summarises the y values for each unique x value, to draw 
+    attention to the summary that you're computing:
+    
+    ```{r}
+    ggplot(data = dvst) + 
+      stat_summary(
+        mapping = aes(x = cent, y = percent.GC),
+        fun.ymin = min,
+        fun.ymax = max,
+        fun.y = median
+      )
+    ```
+    
+ggplot2 provides over 20 stats for you to use. Each stat is a function, so you can get help in the usual way, e.g. `?stat_bin`. To see a complete list of stats, check the [ggplot2 cheatsheet]().
+
+So far we used cent, the only discrete variable in our dataset.  Let's create another one by
+splitting the percent.GC into 5 categories:
+
+```{r}
+dvst <- dvst %>% 
+  mutate(GC.binned = cut(percent.GC, 5));
+select(dvst, GC.binned)
+```
+
+```{r}
+ggplot(data = dvst) + geom_bar(mapping = aes(x=GC.binned))
+```
+
+The bins created from `cut()` are useful in grouping data (a concept we often use in data analysis). 
+For example, we can use the GC.binned column to group data by %GC content bins to see how GC content 
+has an impact on other variables. To do this, we map aesthetics like color, fill, or linetype to our GC.binned column:
+
+```{r}
+ggplot(data = dvst) + geom_density(mapping = aes(x=depth, linetype=GC.binned), alpha=0.5)
+```
+
+What happens if we geom_bar()’s x aesthetic is mapped to a continuous column (e.g., percent.GC)? 
+geom_bar() will automatically bin the data itself, creating a histogram:
+
+```{r}
+ggplot(data = dvst) + geom_bar(mapping = aes(x=percent.GC))
+```
+
+But it does not look like the plot we had!  Hence, the challenge:
+
+> ## Challenge 3: Finding the Right Bin Width
+> 
+> We've seen before how different bin widths can drastically change the way we view and 
+> understand the data. Try creating a histogram of Pi with varying binwidths using: 
+> `ggplot(dvst) + geom_bar(aes(x=Pi), binwidth=1) + scale_x_continu ous(limits=c(0.01, 80))`. 
+> Using scale_x_continuous() just ignores all windows with 0 Pi and zooms into the figure. 
+> Try binwidths of 0.05, 0.5, 1, 5, and 10. What do you observe?  
+>
+> > ## Solution to challenge 3
+> >
+> > Smaller bin widths can fit the data better (revealing more subtle details 
+> > about the distribution), but there’s a trade-off. As bin widths become narrower, each 
+> > bin will contain fewer data points and consequently be more noisy (and undersmoothed). 
+> > Using wider bins smooth over this noise. However, bins that are too wide result in oversmoothing, 
+> > which can hide details about the data.
+> > ggplot(d, aes(x=percent.GC, y=depth)) + geom_point() + geom_smooth()
+> {: .solution}
+{: .challenge}
+
+
+### Exercises
+
+1.  What is the default geom associated with `stat_summary()`? How could
+    you rewrite the previous plot to use that geom function instead of the 
+    stat function?
+
+1.  What does `geom_col()` do? How is it different to `geom_bar()`?
+
+1.  Most geoms and stats come in pairs that are almost always used in 
+    concert. Read through the documentation and make a list of all the 
+    pairs. What do they have in common?
+
+1.  What variables does `stat_smooth()` compute? What parameters control
+    its behaviour?
+
+1.  In our proportion bar chart, we need to set `group = 1`. Why? In other
+    words what is the problem with these two graphs?
+    
+    ```{r, eval = FALSE}
+    ggplot(data = diamonds) + 
+      geom_bar(mapping = aes(x = cut, y = ..prop..))
+    ggplot(data = diamonds) + 
+      geom_bar(mapping = aes(x = cut, fill = color, y = ..prop..))
+    ```
+  
+
+## Position adjustments
+
+There's one more piece of magic associated with bar charts. You can color a bar chart using 
+either the `colour` aesthetic, or, more usefully, `fill`:
+
+```{r out.width = "50%", fig.align = "default"}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, colour = cut))
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = cut))
+```
+
+Note what happens if you map the fill aesthetic to another variable, like `clarity`: the bars are automatically stacked. Each colored rectangle represents a combination of `cut` and `clarity`.
+
+```{r}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = clarity))
+```
+
+The stacking is performed automatically by the __position adjustment__ specified by the `position` argument. If you don't want a stacked bar chart, you can use one of three other options: `"identity"`, `"dodge"` or `"fill"`.
+
+*   `position = "identity"` will place each object exactly where it falls in 
+    the context of the graph. This is not very useful for bars, because it
+    overlaps them. To see that overlapping we either need to make the bars
+    slightly transparent by setting `alpha` to a small value, or completely
+    transparent by setting `fill = NA`.
+    
+    ```{r out.width = "50%", fig.align = "default"}
+    ggplot(data = diamonds, mapping = aes(x = cut, fill = clarity)) + 
+      geom_bar(alpha = 1/5, position = "identity")
+    ggplot(data = diamonds, mapping = aes(x = cut, colour = clarity)) + 
+      geom_bar(fill = NA, position = "identity")
+    ```
+    
+    The identity position adjustment is more useful for 2d geoms, like points,
+    where it is the default.
+    
+*   `position = "fill"` works like stacking, but makes each set of stacked bars
+    the same height. This makes it easier to compare proportions across 
+    groups.
+
+    ```{r}
+    ggplot(data = diamonds) + 
+      geom_bar(mapping = aes(x = cut, fill = clarity), position = "fill")
+    ```
+
+*   `position = "dodge"` places overlapping objects directly _beside_ one 
+    another. This makes it easier to compare individual values.
+
+    ```{r}
+    ggplot(data = diamonds) + 
+      geom_bar(mapping = aes(x = cut, fill = clarity), position = "dodge")
+    ```
+
+There's one other type of adjustment that's not useful for bar charts, but it can be very useful for scatterplots. Recall our first scatterplot. Did you notice that the plot displays only 126 points, even though there are 234 observations in the dataset?
+
+```{r echo = FALSE}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+```
+
+The values of `hwy` and `displ` are rounded so the points appear on a grid and many points overlap each other. This problem is known as __overplotting__. This arrangement makes it hard to see where the mass of the data is. Are the data points spread equally throughout the graph, or is there one special combination of `hwy` and `displ` that contains 109 values? 
+
+You can avoid this gridding by setting the position adjustment to "jitter".  `position = "jitter"` adds a small amount of random noise to each point. This spreads the points out because no two points are likely to receive the same amount of random noise.
+
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy), position = "jitter")
+```
+
+Adding randomness seems like a strange way to improve your plot, but while it makes your graph less accurate at small scales, it makes your graph _more_ revealing at large scales. Because this is such a useful operation, ggplot2 comes with a shorthand for `geom_point(position = "jitter")`: `geom_jitter()`.
+
+To learn more about a position adjustment, look up the help page associated with each adjustment: `?position_dodge`, `?position_fill`, `?position_identity`, `?position_jitter`, and `?position_stack`.
+
+### Exercises
+
+1.  What is the problem with this plot? How could you improve it?
+
+    ```{r}
+    ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
+      geom_point()
+    ```
+
+1.  What parameters to `geom_jitter()` control the amount of jittering?
+
+1.  Compare and contrast `geom_jitter()` with `geom_count()`.
+
+1.  What's the default position adjustment for `geom_boxplot()`? Create
+    a visualisation of the `mpg` dataset that demonstrates it.
 
 ## Facets
 
@@ -570,212 +813,6 @@ ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) +
       geom_point(aes(colour = drv))
     ```
 
-## Statistical transformations
-
-Next, let's take a look at a bar chart. Bar charts seem simple, but they are interesting because they reveal something subtle about plots. Consider a basic bar chart, as drawn with `geom_bar()`. The following chart displays the total number of diamonds in the `diamonds` dataset, grouped by `cut`. The `diamonds` dataset comes in ggplot2 and contains information about ~54,000 diamonds, including the `price`, `carat`, `color`, `clarity`, and `cut` of each diamond. The chart shows that more diamonds are available with high quality cuts than with low quality cuts. 
-
-```{r}
-ggplot(data = diamonds) + 
-  geom_bar(mapping = aes(x = cut))
-```
-
-On the x-axis, the chart displays `cut`, a variable from `diamonds`. On the y-axis, it displays count, but count is not a variable in `diamonds`! Where does count come from? Many graphs, like scatterplots, plot the raw values of your dataset. Other graphs, like bar charts, calculate new values to plot:
-
-* bar charts, histograms, and frequency polygons bin your data 
-  and then plot bin counts, the number of points that fall in each bin.
-
-* smoothers fit a model to your data and then plot predictions from the
-  model.
-
-* boxplots compute a robust summary of the distribution and then display a 
-  specially formatted box.
-
-The algorithm used to calculate new values for a graph is called a __stat__, short for statistical transformation. The figure below describes how this process works with `geom_bar()`.
-
-```{r, echo = FALSE, out.width = "100%"}
-knitr::include_graphics("images/visualization-stat-bar.png")
-```
-
-You can learn which stat a geom uses by inspecting the default value for the `stat` argument. For example, `?geom_bar` shows that the default value for `stat` is "count", which means that `geom_bar()` uses `stat_count()`. `stat_count()` is documented on the same page as `geom_bar()`, and if you scroll down you can find a section called "Computed variables". That describes how it computes two new variables: `count` and `prop`.
-
-You can generally use geoms and stats interchangeably. For example, you can recreate the previous plot using `stat_count()` instead of `geom_bar()`:
-
-```{r}
-ggplot(data = diamonds) + 
-  stat_count(mapping = aes(x = cut))
-```
-
-This works because every geom has a default stat; and every stat has a default geom. This means that you can typically use geoms without worrying about the underlying statistical transformation. There are three reasons you might need to use a stat explicitly:
-
-1.  You might want to override the default stat. In the code below, I change 
-    the stat of `geom_bar()` from count (the default) to identity. This lets 
-    me map the height of the bars to the raw values of a $y$ variable. 
-    Unfortunately when people talk about bar charts casually, they might be
-    referring to this type of bar chart, where the height of the bar is already
-    present in the data, or the previous bar chart where the height of the bar
-    is generated by counting rows.
-    
-    ```{r, warning = FALSE}
-    demo <- tribble(
-      ~cut,         ~freq,
-      "Fair",       1610,
-      "Good",       4906,
-      "Very Good",  12082,
-      "Premium",    13791,
-      "Ideal",      21551
-    )
-    
-    ggplot(data = demo) +
-      geom_bar(mapping = aes(x = cut, y = freq), stat = "identity")
-    ```
-    
-    (Don't worry that you haven't seen `<-` or `tribble()` before. You might be
-    able to guess at their meaning from the context, and you'll learn exactly
-    what they do soon!)
-
-1.  You might want to override the default mapping from transformed variables
-    to aesthetics. For example, you might want to display a bar chart of
-    proportion, rather than count:
-    
-    ```{r}
-    ggplot(data = diamonds) + 
-      geom_bar(mapping = aes(x = cut, y = ..prop.., group = 1))
-    ```
-
-    To find the variables computed by the stat, look for the help section
-    titled "computed variables".
-    
-1.  You might want to draw greater attention to the statistical transformation
-    in your code. For example, you might use `stat_summary()`, which
-    summarises the y values for each unique x value, to draw 
-    attention to the summary that you're computing:
-    
-    ```{r}
-    ggplot(data = diamonds) + 
-      stat_summary(
-        mapping = aes(x = cut, y = depth),
-        fun.ymin = min,
-        fun.ymax = max,
-        fun.y = median
-      )
-    ```
-    
-ggplot2 provides over 20 stats for you to use. Each stat is a function, so you can get help in the usual way, e.g. `?stat_bin`. To see a complete list of stats, try the ggplot2 cheatsheet.
-
-### Exercises
-
-1.  What is the default geom associated with `stat_summary()`? How could
-    you rewrite the previous plot to use that geom function instead of the 
-    stat function?
-
-1.  What does `geom_col()` do? How is it different to `geom_bar()`?
-
-1.  Most geoms and stats come in pairs that are almost always used in 
-    concert. Read through the documentation and make a list of all the 
-    pairs. What do they have in common?
-
-1.  What variables does `stat_smooth()` compute? What parameters control
-    its behaviour?
-
-1.  In our proportion bar chart, we need to set `group = 1`. Why? In other
-    words what is the problem with these two graphs?
-    
-    ```{r, eval = FALSE}
-    ggplot(data = diamonds) + 
-      geom_bar(mapping = aes(x = cut, y = ..prop..))
-    ggplot(data = diamonds) + 
-      geom_bar(mapping = aes(x = cut, fill = color, y = ..prop..))
-    ```
-  
-
-## Position adjustments
-
-There's one more piece of magic associated with bar charts. You can colour a bar chart using either the `colour` aesthetic, or, more usefully, `fill`:
-
-```{r out.width = "50%", fig.align = "default"}
-ggplot(data = diamonds) + 
-  geom_bar(mapping = aes(x = cut, colour = cut))
-ggplot(data = diamonds) + 
-  geom_bar(mapping = aes(x = cut, fill = cut))
-```
-
-Note what happens if you map the fill aesthetic to another variable, like `clarity`: the bars are automatically stacked. Each colored rectangle represents a combination of `cut` and `clarity`.
-
-```{r}
-ggplot(data = diamonds) + 
-  geom_bar(mapping = aes(x = cut, fill = clarity))
-```
-
-The stacking is performed automatically by the __position adjustment__ specified by the `position` argument. If you don't want a stacked bar chart, you can use one of three other options: `"identity"`, `"dodge"` or `"fill"`.
-
-*   `position = "identity"` will place each object exactly where it falls in 
-    the context of the graph. This is not very useful for bars, because it
-    overlaps them. To see that overlapping we either need to make the bars
-    slightly transparent by setting `alpha` to a small value, or completely
-    transparent by setting `fill = NA`.
-    
-    ```{r out.width = "50%", fig.align = "default"}
-    ggplot(data = diamonds, mapping = aes(x = cut, fill = clarity)) + 
-      geom_bar(alpha = 1/5, position = "identity")
-    ggplot(data = diamonds, mapping = aes(x = cut, colour = clarity)) + 
-      geom_bar(fill = NA, position = "identity")
-    ```
-    
-    The identity position adjustment is more useful for 2d geoms, like points,
-    where it is the default.
-    
-*   `position = "fill"` works like stacking, but makes each set of stacked bars
-    the same height. This makes it easier to compare proportions across 
-    groups.
-
-    ```{r}
-    ggplot(data = diamonds) + 
-      geom_bar(mapping = aes(x = cut, fill = clarity), position = "fill")
-    ```
-
-*   `position = "dodge"` places overlapping objects directly _beside_ one 
-    another. This makes it easier to compare individual values.
-
-    ```{r}
-    ggplot(data = diamonds) + 
-      geom_bar(mapping = aes(x = cut, fill = clarity), position = "dodge")
-    ```
-
-There's one other type of adjustment that's not useful for bar charts, but it can be very useful for scatterplots. Recall our first scatterplot. Did you notice that the plot displays only 126 points, even though there are 234 observations in the dataset?
-
-```{r echo = FALSE}
-ggplot(data = mpg) + 
-  geom_point(mapping = aes(x = displ, y = hwy))
-```
-
-The values of `hwy` and `displ` are rounded so the points appear on a grid and many points overlap each other. This problem is known as __overplotting__. This arrangement makes it hard to see where the mass of the data is. Are the data points spread equally throughout the graph, or is there one special combination of `hwy` and `displ` that contains 109 values? 
-
-You can avoid this gridding by setting the position adjustment to "jitter".  `position = "jitter"` adds a small amount of random noise to each point. This spreads the points out because no two points are likely to receive the same amount of random noise.
-
-```{r}
-ggplot(data = mpg) + 
-  geom_point(mapping = aes(x = displ, y = hwy), position = "jitter")
-```
-
-Adding randomness seems like a strange way to improve your plot, but while it makes your graph less accurate at small scales, it makes your graph _more_ revealing at large scales. Because this is such a useful operation, ggplot2 comes with a shorthand for `geom_point(position = "jitter")`: `geom_jitter()`.
-
-To learn more about a position adjustment, look up the help page associated with each adjustment: `?position_dodge`, `?position_fill`, `?position_identity`, `?position_jitter`, and `?position_stack`.
-
-### Exercises
-
-1.  What is the problem with this plot? How could you improve it?
-
-    ```{r}
-    ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
-      geom_point()
-    ```
-
-1.  What parameters to `geom_jitter()` control the amount of jittering?
-
-1.  Compare and contrast `geom_jitter()` with `geom_count()`.
-
-1.  What's the default position adjustment for `geom_boxplot()`? Create
-    a visualisation of the `mpg` dataset that demonstrates it.
 
 ## Coordinate systems
 
