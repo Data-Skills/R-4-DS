@@ -6,10 +6,10 @@
 carpentry: "swc"
 
 # Overall title for pages.
-title: "R for Biological Data"
+title: "Working with and Visualizing Data in R"
 
 # Contact email address.
-email: "mailto:lessons@software-carpentry.org"
+email: "mailto:dlavrov@iastate.edu"
 
 #------------------------------------------------------------
 # Constant URL addresses across lessons
